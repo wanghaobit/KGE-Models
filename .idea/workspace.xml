@@ -2,25 +2,9 @@
 <project version="4">
   <component name="ChangeListManager">
     <list default="true" id="d220b564-e1e7-4270-acc1-be0e1c5d6def" name="Changes" comment="">
-      <change afterPath="$PROJECT_DIR$/configs/fb15k-237-conve.sh" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/inspectionProfiles/Project_Default.xml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/vcs.xml" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/README.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs/fb15k-237.sh" beforeDir="false" afterPath="$PROJECT_DIR$/configs/fb15k-237.sh" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs/fb15k.sh" beforeDir="false" afterPath="$PROJECT_DIR$/configs/fb15k.sh" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs/kinship.sh" beforeDir="false" afterPath="$PROJECT_DIR$/configs/kinship.sh" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs/nell-995.sh" beforeDir="false" afterPath="$PROJECT_DIR$/configs/nell-995.sh" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs/umls.sh" beforeDir="false" afterPath="$PROJECT_DIR$/configs/umls.sh" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs/wn18.sh" beforeDir="false" afterPath="$PROJECT_DIR$/configs/wn18.sh" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs/wn18rr-conve.sh" beforeDir="false" afterPath="$PROJECT_DIR$/configs/wn18rr-conve.sh" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs/wn18rr.sh" beforeDir="false" afterPath="$PROJECT_DIR$/configs/wn18rr.sh" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs/yago3-10.sh" beforeDir="false" afterPath="$PROJECT_DIR$/configs/yago3-10.sh" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/data/preprocess_data.py" beforeDir="false" afterPath="$PROJECT_DIR$/data/preprocess_data.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/run.sh" beforeDir="false" afterPath="$PROJECT_DIR$/run.sh" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/data_loader.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/data_loader.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/eval.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/eval.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/main.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/models.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/models.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/parse_args.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/parse_args.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -124,7 +108,7 @@
       <workItem from="1677068610133" duration="5384000" />
       <workItem from="1677157694313" duration="271000" />
       <workItem from="1677161364462" duration="1717000" />
-      <workItem from="1677163947865" duration="2510000" />
+      <workItem from="1677163947865" duration="3957000" />
     </task>
     <servers />
   </component>

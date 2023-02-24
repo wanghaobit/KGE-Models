@@ -38,7 +38,7 @@ class Runner(nn.Module):
 
         self.entity2id, self.id2entity, self.num_entities, \
         self.relation2id, self.id2relation, self.num_relations = data_loader.load_graph_data(args.data_dir)
-        self.dev_objects, self.all_objects = data_loader.load_all_answers(args.data_dir)
+        self.dev_objects, self.all_objects = data_loader.load_all_answers(args.data_dir, add_reversed_edges=True)
 
         # Translation-based Models
         if args.emb_model == 'TransE':
@@ -66,7 +66,7 @@ class Runner(nn.Module):
         dev_path = os.path.join(args.data_dir, 'dev.triples')
         entity_index_path = os.path.join(args.data_dir, 'entity2id.txt')
         relation_index_path = os.path.join(args.data_dir, 'relation2id.txt')
-        train_data = data_loader.load_triples(train_path, entity_index_path, relation_index_path,
+        train_data, _ = data_loader.load_triples(train_path, entity_index_path, relation_index_path,
                                             add_reverse_relations=args.add_reversed_training_edges,
                                             group_examples_by_query=True)
         if 'NELL' in args.data_dir:
@@ -75,7 +75,7 @@ class Runner(nn.Module):
         else:
             seen_entities = set()
         dev_tail_data, dev_head_data = data_loader.load_triples(dev_path, entity_index_path, relation_index_path,
-                                                 seen_entities=seen_entities)
+                                                 seen_entities=seen_entities, inverse_triple=True)
 
         if self.optim is None:
             self.optim = optim.Adam(
@@ -187,9 +187,9 @@ class Runner(nn.Module):
         else:
             seen_entities = set()
         dev_tail_data, dev_head_data = data_loader.load_triples(dev_path, entity_index_path, relation_index_path,
-                                            seen_entities=seen_entities)
+                                            seen_entities=seen_entities, inverse_triple=True)
         test_tail_data, test_head_data = data_loader.load_triples(test_path, entity_index_path, relation_index_path,
-                                            seen_entities=seen_entities)
+                                            seen_entities=seen_entities, inverse_triple=True)
 
         epoch_id = self.__load_checkpoint()
         print("Best epoch id: {}".format(epoch_id))
