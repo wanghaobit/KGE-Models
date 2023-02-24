@@ -104,10 +104,6 @@ class Runner(nn.Module):
                     clip_grad_norm_(self.kge.parameters(), self.grad_norm)
                 self.optim.step()
                 batch_losses.append(loss['print_loss'])
-                # print("batch_counter: {}, train loss {}, time: {}".format(
-                #                                             int(example_id / self.batch_size),
-                #                                             loss['print_loss'],
-                #                                             time.time() - sart_time))
             # Check training statistics
             stdout_msg = 'Epoch {}: average training loss = {}, times: {}'.format(
                                 epoch_id, np.mean(batch_losses), time.time()-start_time)
@@ -206,8 +202,7 @@ class Runner(nn.Module):
             print('Dev set performance: (correct evaluation)')
             left_results = eval.sum_hits_and_ranks(dev_tail_data, dev_tail_scores, self.dev_objects)
             right_results = eval.sum_hits_and_ranks(dev_head_data, dev_head_scores, self.dev_objects)
-            results = eval.avg_hits_and_ranks(left_results, right_results)
-            metrics = results['mrr']
+            eval.avg_hits_and_ranks(left_results, right_results)
 
             print('Dev set performance: (include test set labels)')
             left_results = eval.sum_hits_and_ranks(dev_tail_data, dev_tail_scores, self.all_objects)

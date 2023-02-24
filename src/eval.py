@@ -59,6 +59,46 @@ def hits_and_ranks1(examples, scores, all_answers, verbose=False):
     return hits_at_1, hits_at_3, hits_at_5, hits_at_10, mrr
 
 
+def hits_and_ranks(examples, scores, all_answers, verbose=False):
+    assert (len(examples) == scores.shape[0])
+    # mask false negatives in the predictions
+    dummy_mask = [DUMMY_ENTITY_ID, NO_OP_ENTITY_ID]
+    batch_e2 = []
+    for i, example in enumerate(examples):
+        e1, e2, r = example
+        batch_e2.append(e2)
+        e2_multi = dummy_mask + list(all_answers[e1][r])
+        # save the relevant prediction
+        target_score = float(scores[i, e2])
+        # mask all false negatives
+        scores[i, e2_multi] = 0
+        # write back the save prediction
+        scores[i, e2] = target_score
+
+    obj = var_cuda(torch.LongTensor(batch_e2), requires_grad=False)
+    b_range = var_cuda(torch.arange(scores.size()[0]), requires_grad=False)
+    ranks = 1 + torch.argsort(torch.argsort(scores, dim=1, descending=True), dim=1, descending=False)[b_range, obj]
+    ranks = ranks.float()
+    results = {}
+    results['count'] = torch.numel(ranks) + results.get('count', 0.0)
+    results['mr'] = round((torch.sum(ranks).item() + results.get('mr', 0.0)) / results['count'], 3)
+    results['mrr'] = round((torch.sum(1.0 / ranks).item() + results.get('mrr', 0.0)) / results['count'], 3)
+    for k in range(10):
+        results['hits@{}'.format(k + 1)] = round((torch.numel(ranks[ranks <= (k + 1)])
+                                                  + results.get('hits@{}'.format(k+1), 0.0)) / results['count'], 3)
+
+    if verbose:
+        print('Average performance:')
+        print('Hits@1 \t = {:.3f}'.format(results['hits@1']))
+        print('Hits@3 \t = {:.3f}'.format(results['hits@3']))
+        print('Hits@5 \t = {:.3f}'.format(results['hits@5']))
+        print('Hits@10  = {:.3f}'.format(results['hits@10']))
+        print('MRR \t = {:.3f}'.format(results['mrr']))
+        print('MR \t = {}'.format(int(results['mr'])))
+
+    return results
+
+
 def sum_hits_and_ranks(examples, scores, all_answers):
     assert (len(examples) == scores.shape[0])
     # mask false negatives in the predictions
@@ -120,44 +160,4 @@ def avg_hits_and_ranks(left_results, right_results, verbose=False):
         print('Hits@10 = {:.3f}'.format(results['hits@10']))
         print('MRR = {:.3f}'.format(results['mrr']))
         print('MR = {}'.format(int(results['mr'])))
-    return results
-
-
-def hits_and_ranks(examples, scores, all_answers, verbose=False):
-    assert (len(examples) == scores.shape[0])
-    # mask false negatives in the predictions
-    dummy_mask = [DUMMY_ENTITY_ID, NO_OP_ENTITY_ID]
-    batch_e2 = []
-    for i, example in enumerate(examples):
-        e1, e2, r = example
-        batch_e2.append(e2)
-        e2_multi = dummy_mask + list(all_answers[e1][r])
-        # save the relevant prediction
-        target_score = float(scores[i, e2])
-        # mask all false negatives
-        scores[i, e2_multi] = 0
-        # write back the save prediction
-        scores[i, e2] = target_score
-
-    obj = var_cuda(torch.LongTensor(batch_e2), requires_grad=False)
-    b_range = var_cuda(torch.arange(scores.size()[0]), requires_grad=False)
-    ranks = 1 + torch.argsort(torch.argsort(scores, dim=1, descending=True), dim=1, descending=False)[b_range, obj]
-    ranks = ranks.float()
-    results = {}
-    results['count'] = torch.numel(ranks) + results.get('count', 0.0)
-    results['mr'] = round((torch.sum(ranks).item() + results.get('mr', 0.0)) / results['count'], 3)
-    results['mrr'] = round((torch.sum(1.0 / ranks).item() + results.get('mrr', 0.0)) / results['count'], 3)
-    for k in range(10):
-        results['hits@{}'.format(k + 1)] = round((torch.numel(ranks[ranks <= (k + 1)])
-                                                  + results.get('hits@{}'.format(k+1), 0.0)) / results['count'], 3)
-
-    if verbose:
-        print('Average performance:')
-        print('Hits@1 \t = {:.3f}'.format(results['hits@1']))
-        print('Hits@3 \t = {:.3f}'.format(results['hits@3']))
-        print('Hits@5 \t = {:.3f}'.format(results['hits@5']))
-        print('Hits@10  = {:.3f}'.format(results['hits@10']))
-        print('MRR \t = {:.3f}'.format(results['mrr']))
-        print('MR \t = {}'.format(int(results['mr'])))
-
     return results

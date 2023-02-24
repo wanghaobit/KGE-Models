@@ -96,40 +96,24 @@ class RotatE(KGEModel):
         return self.entity_embeddings.weight
 
     def forward(self, e1, r):
-        # [b, 2*e]
         E1 = self.get_entity_embeddings(e1)
-        # [b, e]
         R = self.get_relation_embeddings(r)
-        # [n, 2*e]
         E2 = self.get_all_entity_embeddings()
-        # [b, e]
         E1_real, E1_img = torch.chunk(E1, 2, dim=1)
-        # [n, e]
         E2_real, E2_img = torch.chunk(E2, 2, dim=1)
 
         # Make phases of relations uniformly distributed in [-pi, pi]
-        # [b, e]
         phase_relation = R / (self.embedding_range.item() / self.pi)
         R_real = torch.cos(phase_relation)
         R_img = torch.sin(phase_relation)
 
-        # 复数乘法 (a+bi)(c+di)=(ac+bd)+(ad+bc)i
-        # [b, e]
-        # ac+bd
         re_score = E1_real * R_real - E1_img * R_img
-        # ad+bc
         im_score = E1_real * R_img + E1_img * R_real
-        # re_score [b, 1, e],  E2_real [1, n, e]  --> [b, n, e]
-        # 实部运算 h*r-t
         re_score = re_score.unsqueeze(1) - E2_real.unsqueeze(0)
-        # 虚部运算 h*r-t
         im_score = im_score.unsqueeze(1) - E2_img.unsqueeze(0)
 
-        # [2, b, n, e]
         score = torch.stack([re_score, im_score], dim=0)
-        # [b, n, e]
         score = score.norm(dim=0)
-        # [b, n]
         score = self.gamma.item() - score.sum(dim=2)
 
         S = torch.sigmoid(score)
@@ -143,13 +127,11 @@ class RotatE(KGEModel):
         E2_real, E2_img = torch.chunk(E2, 2, dim=1)
 
         # Make phases of relations uniformly distributed in [-pi, pi]
-        # [b, e]
         phase_relation = R / (self.embedding_range.item() / self.pi)
 
         R_real = torch.cos(phase_relation)
         R_img = torch.sin(phase_relation)
 
-        # [b, e]
         re_score = E1_real * R_real - E1_img * R_img
         im_score = E1_real * R_img + E1_img * R_real
         re_score = re_score - E2_real
@@ -157,9 +139,7 @@ class RotatE(KGEModel):
 
         # [2, b, e]
         score = torch.stack([re_score, im_score], dim=0)
-        # [b, e]
         score = score.norm(dim=0)
-        # [b, 1]
         score = self.gamma.item() - score.sum(dim=-1, keepdim=True)
 
         S = torch.sigmoid(score)
@@ -196,7 +176,7 @@ class ComplEx(KGEModel):
         self.entity_img_embeddings = nn.Embedding(self.num_entities, self.entity_dim)
         self.relation_img_embeddings = nn.Embedding(self.num_relations, self.relation_dim)
 
-        # 初始化问题？
+        # init
         # nn.init.xavier_normal_(self.entity_img_embeddings.weight)
         # nn.init.xavier_normal_(self.relation_img_embeddings.weight)
 
@@ -449,7 +429,6 @@ class AcrE(KGEModel):
         x = self.bn2(x)
         x = F.relu(x)
 
-        # x[b, e] E2[n, e] --> x[b, n]
         x = torch.mm(x, E2.transpose(1, 0))
         x += self.b.expand_as(x)
         S = torch.sigmoid(x)
@@ -484,21 +463,14 @@ class AcrE(KGEModel):
         x = self.bn2(x)
         x = F.relu(x)
 
-        # x[b, e] E2[b, e] --> [b, e] --> [b, 1]
         x = torch.mul(x, E2).sum(dim=-1, keepdim=True)
-        # x[b, e]->[b, 1, e]    E2[b, e]->[b, e, 1]  --> [b, 1, 1]  --> [b, 1]
-        # x = torch.matmul(x.unsqueeze(1), E2.unsqueeze(2)).squeeze(2)
         x += self.b[e2].unsqueeze(1)
-
-        # pred_et.unsqueeze(1)
-        # x = torch.matmul(x.unsqueeze(1), E2.permute(0, 2, 1)).squeeze(1)
-        # x += self.b[e2]
 
         S = torch.sigmoid(x)
         return S
 
 
-# GNN-based Models
+# GCN-based Models
 class SACN(KGEModel):
     def __init__(self, args, num_entities, num_relations):
         super(SACN, self).__init__(args, num_entities, num_relations)

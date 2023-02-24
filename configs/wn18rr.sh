@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 data_dir="data/WN18RR"
-emb_model="ComplEx"
+emb_model="TransE"
 add_reversed_training_edges="True"
 
 entity_dim=200
@@ -16,4 +16,4 @@ dev_batch_size=64
 learning_rate=0.003
 grad_norm=0
 
-model_dir="save_model/wn18rr/ComplEx"
+model_dir="save_model/wn18rr/TransE"

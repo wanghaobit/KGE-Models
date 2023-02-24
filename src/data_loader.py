@@ -175,8 +175,8 @@ def format_batch(batch_data, num_labels=-1, num_tiles=1, isMul=False):
     return batch_e1, batch_e2, batch_r
 
 
-def prepare_kb_envrioment(raw_kb_path, train_path, dev_path, test_path, add_reverse_relations=True):
-    data_dir = os.path.dirname(raw_kb_path)
+def prepare_kb_envrioment(train_path, dev_path, test_path, add_reverse_relations=True):
+    data_dir = os.path.dirname(train_path)
 
     def get_type(e_name):
         if e_name == DUMMY_ENTITY:
@@ -196,8 +196,6 @@ def prepare_kb_envrioment(raw_kb_path, train_path, dev_path, test_path, add_reve
     entity_hist = collections.defaultdict(int)
     relation_hist = collections.defaultdict(int)
     type_hist = collections.defaultdict(int)
-    with open(raw_kb_path) as f:
-        raw_kb_triples = [l.strip() for l in f.readlines()]
     with open(train_path) as f:
         train_triples = [l.strip() for l in f.readlines()]
     with open(dev_path) as f:
@@ -213,7 +211,7 @@ def prepare_kb_envrioment(raw_kb_path, train_path, dev_path, test_path, add_reve
     removed_triples = dev_triples + test_triples
 
     # Index entities and relations
-    for line in set(raw_kb_triples + keep_triples + removed_triples):
+    for line in set(keep_triples + removed_triples):
         e1, e2, r = line.strip().split()
         entity_hist[e1] += 1
         entity_hist[e2] += 1
@@ -257,7 +255,7 @@ def prepare_kb_envrioment(raw_kb_path, train_path, dev_path, test_path, add_reve
     adj_list = collections.defaultdict(collections.defaultdict)
     entity2typeid = [0 for i in range(len(entity2id))]
     num_facts = 0
-    for line in set(raw_kb_triples + keep_triples):
+    for line in set(keep_triples):
         e1, e2, r = line.strip().split()
         triple_signature = '{}\t{}\t{}'.format(e1, e2, r)
         e1_id = entity2id[e1]
@@ -329,12 +327,12 @@ def load_all_answers(data_dir, add_reversed_edges=False):
         return entity2id[e1], entity2id[e2], relation2id[r]
 
     def get_inv_relation_id(r_id):
-        return r_id - 1
+        return relation2id['_' + id2relation[r_id]]
 
     entity_index_path = os.path.join(data_dir, 'entity2id.txt')
     relation_index_path = os.path.join(data_dir, 'relation2id.txt')
     entity2id, _ = load_index(entity_index_path)
-    relation2id, _ = load_index(relation_index_path)
+    relation2id, id2relation = load_index(relation_index_path)
 
     # store subjects for all (rel, object) queries and
     # objects for all (subject, rel) queries
@@ -350,20 +348,20 @@ def load_all_answers(data_dir, add_reversed_edges=False):
     add_object(de, de, dr, train_objects)
     add_object(de, de, dr, dev_objects)
     add_object(de, de, dr, all_objects)
-    for file_name in ['raw.kb', 'train.triples', 'dev.triples', 'test.triples']:
+    for file_name in ['train.triples', 'dev.triples', 'test.triples']:
         if 'NELL' in data_dir and file_name == 'train.triples':
             continue
         with open(os.path.join(data_dir, file_name)) as f:
             for line in f:
                 e1, e2, r = line.strip().split()
                 e1, e2, r = triple2ids(e1, e2, r)
-                if file_name in ['raw.kb', 'train.triples']:
+                if file_name in ['train.triples']:
                     add_subject(e1, e2, r, train_subjects)
                     add_object(e1, e2, r, train_objects)
                     if add_reversed_edges:
                         add_subject(e2, e1, get_inv_relation_id(r), train_subjects)
                         add_object(e2, e1, get_inv_relation_id(r), train_objects)
-                if file_name in ['raw.kb', 'train.triples', 'dev.triples']:
+                if file_name in ['train.triples', 'dev.triples']:
                     add_subject(e1, e2, r, dev_subjects)
                     add_object(e1, e2, r, dev_objects)
                     if add_reversed_edges:

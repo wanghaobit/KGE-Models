@@ -35,10 +35,10 @@ cmd="python3 -u -m src.main \
 
 echo "Executing $cmd"
 
-#$cmd
+$cmd
 #nohup $cmd > log_wn18rr_conve.txt 2>&1 &
 #nohup $cmd > log_wn18rr_acre.txt 2>&1 &
-nohup $cmd > log_wn18rr_complex.txt 2>&1 &
+# nohup $cmd > log_wn18rr_complex.txt 2>&1 &
 #nohup $cmd > log_wn18rr_distmult.txt 2>&1 &
 #nohup $cmd > log_wn18rr_rotate.txt 2>&1 &
 

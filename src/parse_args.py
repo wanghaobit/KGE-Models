@@ -13,10 +13,6 @@ parser.add_argument('--continue_train', action='store_true',
                     help='continue to train model (default: False)')
 parser.add_argument('--test', action='store_true',
                     help='test path selection set_policy training (default: False)')
-parser.add_argument('--train_clm', action='store_true',
-                    help='run clm framework training (default: False)')
-parser.add_argument('--test_clm', action='store_true',
-                    help='test clm framework performance (default: False)')
 
 parser.add_argument('--emb_model', type=str, default='conve',
                     help='knowledge graph pretrained embedding model (default: point)')
@@ -24,16 +20,10 @@ parser.add_argument('--data_dir', type=str, default=os.path.join(os.path.dirname
                     help='directory where the knowledge graph data is stored (default: None)')
 parser.add_argument('--model_dir', type=str, default=os.path.join(os.path.dirname(os.path.dirname(__file__)), 'model'),
                     help='directory where the GAN model parameters are stored (default: None)')
-
 parser.add_argument('--gpu', type=int, default=0,
                     help='gpu device (default: 0)')
 parser.add_argument('--seed', type=int, default=543, metavar='S',
                     help='random seed (default: 543)')
-
-# CLM
-parser.add_argument('--emb_model_2', type=str, default='conve',
-                    help='knowledge graph pretrained embedding model (default: point)')
-
 
 # Optimization
 parser.add_argument('--num_epochs', type=int, default=20,

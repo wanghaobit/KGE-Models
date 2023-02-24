@@ -1,6 +1,5 @@
-# A Collection of Knowledge Graph Embedding Methods (KGE).
+## A Collection of Knowledge Graph Embedding Methods (KGE).
 
-## Quick Start
 ### Process datasets
 1. First, run the following command to preprocess the datasets.
 ```
