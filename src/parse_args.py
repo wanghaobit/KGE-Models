@@ -48,33 +48,42 @@ parser.add_argument('--learning_rate', type=float, default=0.0001,
 #                     help='Adam: decay rates for the first movement estimate (default: 0.9)')
 # parser.add_argument('--adam_beta2', type=float, default=0.999,
 #                     help='Adam: decay rates for the second raw movement estimate (default: 0.999)')
-parser.add_argument('--grad_norm', type=float, default=10000,
-                    help='norm threshold for gradient clipping (default 10000)')
+parser.add_argument('--grad_norm', type=float, default=0,
+                    help='norm threshold for gradient clipping (default 0)')
 # parser.add_argument('--xavier_initialization', type=bool, default=True,
 #                     help='Initialize all model parameters using xavier initialization (default: True)')
 # parser.add_argument('--random_parameters', type=bool, default=False,
 #                     help='Inference with random parameters (default: False)')
 
 
-# KGE Models' Parameters
+# KGE Models' Share Parameters
 parser.add_argument('--entity_dim', type=int, default=200, metavar='E',
                     help='entity embedding dimension (default: 200)')
 parser.add_argument('--relation_dim', type=int, default=200, metavar='R',
                     help='relation embedding dimension (default: 200)')
-parser.add_argument('--emb_dropout_rate', type=float, default=0.3,
-                    help='Knowledge graph embedding dropout rate (default: 0.3)')
-# parser.add_argument('--gamma', type=float, default=1,
-#                     help='moving average weight (default: 1)')
 parser.add_argument('--label_smoothing_epsilon', type=float, default=0.1,
                     help='epsilon used for label smoothing')
 parser.add_argument('--add_reversed_training_edges', action='store_true',
                     help='add reversed edges to extend training set (default: False)')
 
-# ConvE
+parser.add_argument('--emb_dropout_rate', type=float, default=0.0,
+                    help='Knowledge graph embedding dropout rate (default: 0.3)')
+parser.add_argument('--input_dropout_rate', type=float, default=0.2,
+                    help='Dropout for Input layer')
 parser.add_argument('--hidden_dropout_rate', type=float, default=0.3,
-                    help='ConvE hidden layer dropout rate (default: 0.3)')
-parser.add_argument('--feat_dropout_rate', type=float, default=0.2,
-                    help='ConvE feature dropout rate (default: 0.2)')
+                    help='First hidden layer dropout rate (default: 0.3)')
+parser.add_argument('--hidden_dropout_rate_2', type=float, default=0.3,
+                    help='Second hidden layer dropout rate (default: 0.3)')
+parser.add_argument('--feature_dropout_rate', type=float, default=0.2,
+                    help='Feature dropout rate (default: 0.2)')
+parser.add_argument('--bias', action='store_true',
+                    help='Whether to use bias in the model')
+
+# Trans
+parser.add_argument('--gamma', type=float, default=24.0,
+                    help="RotatE's moving average weight")
+
+# ConvE
 parser.add_argument('--emb_2D_d1', type=int, default=10,
                     help='ConvE embedding 2D shape dimension 1 (default: 10)')
 parser.add_argument('--emb_2D_d2', type=int, default=20,
@@ -87,36 +96,21 @@ parser.add_argument('--theta', type=float, default=0.2,
                     help='Threshold for sifting high-confidence facts (default: 0.2)')
 
 # AcrE
-parser.add_argument('--inp_drop', dest="inp_drop", default=0.2, type=float,
-                    help='Dropout for Input layer')
-parser.add_argument('--hid_drop', dest="hid_drop", default=0.5, type=float,
-                    help='Dropout for Hidden layer')
-parser.add_argument('--feat_drop', dest="feat_drop", default=0.5, type=float,
-                    help='Dropout for Feature')
-parser.add_argument('--channel', dest="channel", default=32, type=int,
-                    help='Number of out channel')
 parser.add_argument("--way", type=str, default='t',
                     help='Serial or Parallel')
-parser.add_argument("--first_atrous", dest="first_atrous", default=1, type=int,
+parser.add_argument("--first_atrous", type=int, default=1,
                     help="First layer expansion coefficient")
-parser.add_argument("--second_atrous", dest="second_atrous", default=2, type=int,
+parser.add_argument("--second_atrous", type=int, default=2,
                     help="Second layer expansion coefficient")
-parser.add_argument("--third_atrous", dest="third_atrous", default=5, type=int,
+parser.add_argument("--third_atrous", type=int, default=5,
                     help="Third layer expansion coefficient")
-parser.add_argument('--bias', dest="bias", action='store_true',
-                    help='Whether to use bias in the model')
 
-# RotatE
-parser.add_argument('--gamma', dest="gamma", default=24.0, type=float,
-                    help="RotatE's moving average weight")
-
-# TuckER
-parser.add_argument('--input_dropout_rate', type=float, default=0.2,
-                    help='TuckER input layer dropout rate (default: 0.2)')
-parser.add_argument('--hidden_dropout_rate_1', type=float, default=0.2,
-                    help='TuckER first hidden layer dropout rate (default: 0.2)')
-parser.add_argument('--hidden_dropout_rate_2', type=float, default=0.3,
-                    help='TuckER second hidden layer dropout rate (default: 0.3)')
-
+# CompGCN
+parser.add_argument('-gcn_dim', type=int, default=200,
+                    help='Number of hidden units in GCN')
+parser.add_argument('--num_gcn_layer', type=int, default=1,
+                    help='Number of GCN Layers to use')
+parser.add_argument('--gcn_dropout_rate', type=float, default=0.1,
+                    help='GCN dropout rate (default: 0.1)')
 
 args = parser.parse_args()

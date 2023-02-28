@@ -39,7 +39,7 @@ def load_triples(data_path, entity_index_path, relation_index_path, add_reverse_
 
     triples = []
     inv_triples = []
-    sr2o = collections.defaultdict(set)
+    # sr2o = collections.defaultdict(set)
     if group_examples_by_query:
         triple_dict = {}
         inv_triple_dict = {}
@@ -83,10 +83,10 @@ def load_triples(data_path, entity_index_path, relation_index_path, add_reverse_
                 if inverse_triple:
                     inv_triples.append(triple2ids(e2, e1, '_' + r))
 
-                sub, obj, rel = triple2ids(e1, e2, r)
-                sr2o[(sub, rel)].add(obj)
-                sub, obj, rel = triple2ids(e2, e1, '_' + r)
-                sr2o[(sub, rel)].add(obj)
+                # sub, obj, rel = triple2ids(e1, e2, r)
+                # sr2o[(sub, rel)].add(obj)
+                # sub, obj, rel = triple2ids(e2, e1, '_' + r)
+                # sr2o[(sub, rel)].add(obj)
 
     if group_examples_by_query:
         for e1_id in triple_dict:

@@ -27,11 +27,11 @@
 ```
 
 ### Evaluate models
-To generate the evaluation results of a pre-trained model, simply change the `--train` flag in the commands above to `--inference`. 
+To generate the evaluation results of a pre-trained model, simply change the `--train` flag in the commands above to `--test`. 
 
 For example, the following command performs inference and prints the evaluation results (on both dev and test sets).
 ```
-./run.sh configs/<dataset>-<KGE model>.sh --inference <gpu-ID>
+./run.sh configs/<dataset>-<KGE model>.sh --test <gpu-ID>
 ```
 
 ### Add new models

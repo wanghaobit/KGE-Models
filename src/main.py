@@ -10,9 +10,11 @@ from torch.nn.utils import clip_grad_norm_
 import src.eval as eval
 from src.parse_args import args
 import src.data_loader as data_loader
+import src.CompGCN.helper as CompGCN_helper
 from src.models import TransE, RotatE
 from src.models import DistMult, ComplEx, TuckER
 from src.models import ConvE, AcrE
+from src.models import CompGCN
 
 
 class Runner(nn.Module):
@@ -39,6 +41,9 @@ class Runner(nn.Module):
         self.entity2id, self.id2entity, self.num_entities, \
         self.relation2id, self.id2relation, self.num_relations = data_loader.load_graph_data(args.data_dir)
         self.dev_objects, self.all_objects = data_loader.load_all_answers(args.data_dir, add_reversed_edges=True)
+        self.train_data, self.train_data_tuple,\
+        self.dev_tail_data, self.dev_head_data,\
+        self.test_tail_data, self.test_head_data = self.load_kg_data()
 
         # Translation-based Models
         if args.emb_model == 'TransE':
@@ -57,29 +62,46 @@ class Runner(nn.Module):
             self.kge = ConvE(args, self.num_entities, self.num_relations)
         elif args.emb_model == "AcrE":
             self.kge = AcrE(args, self.num_entities, self.num_relations)
+        # GCN-based Models
+        elif args.emb_model == "CompGCN":
+            self.kge = CompGCN(args, self.num_entities, self.num_relations)
+            edge_index, edge_type = CompGCN_helper.construct_adj(self.train_data_tuple, self.num_relations)
+            self.kge.set_edge(edge_index, edge_type)
         else:
             raise NotImplementedError
         self.kge.cuda()
 
-    def run_train(self, args, start_epoch=0):
+    def load_kg_data(self):
         train_path = data_loader.get_train_path(args.data_dir)
         dev_path = os.path.join(args.data_dir, 'dev.triples')
+        test_path = os.path.join(args.data_dir, 'test.triples')
         entity_index_path = os.path.join(args.data_dir, 'entity2id.txt')
         relation_index_path = os.path.join(args.data_dir, 'relation2id.txt')
-        train_data, _ = data_loader.load_triples(train_path, entity_index_path, relation_index_path,
-                                            add_reverse_relations=args.add_reversed_training_edges,
-                                            group_examples_by_query=True)
+
+        train_data_group, _ = data_loader.load_triples(train_path, entity_index_path, relation_index_path,
+                                                 add_reverse_relations=args.add_reversed_training_edges,
+                                                 group_examples_by_query=True)
+        train_data_tuple, _ = data_loader.load_triples(train_path, entity_index_path, relation_index_path,
+                                                 add_reverse_relations=args.add_reversed_training_edges)
         if 'NELL' in args.data_dir:
             adj_list_path = os.path.join(args.data_dir, 'adj_list.pkl')
             seen_entities = data_loader.load_seen_entities(adj_list_path, entity_index_path)
         else:
             seen_entities = set()
         dev_tail_data, dev_head_data = data_loader.load_triples(dev_path, entity_index_path, relation_index_path,
-                                                 seen_entities=seen_entities, inverse_triple=True)
+                                                                seen_entities=seen_entities, inverse_triple=True)
+        test_tail_data, test_head_data = data_loader.load_triples(test_path, entity_index_path, relation_index_path,
+                                                                  seen_entities=seen_entities, inverse_triple=True)
+        return train_data_group, train_data_tuple, dev_tail_data, dev_head_data, test_tail_data, test_head_data
+
+    def run_train(self, start_epoch=0):
+        train_data = self.train_data
+        dev_tail_data = self.dev_tail_data
+        dev_head_data = self.dev_head_data
 
         if self.optim is None:
             self.optim = optim.Adam(
-                filter(lambda p: p.requires_grad, self.kge.parameters()), lr=self.learning_rate)
+                filter(lambda p: p.requires_grad, self.parameters()), lr=self.learning_rate)
 
         # Track dev metrics changes
         best_dev_metrics = 0
@@ -101,7 +123,7 @@ class Runner(nn.Module):
                 loss = self.loss(mini_batch)
                 loss['model_loss'].backward()
                 if self.grad_norm > 0:
-                    clip_grad_norm_(self.kge.parameters(), self.grad_norm)
+                    clip_grad_norm_(self.parameters(), self.grad_norm)
                 self.optim.step()
                 batch_losses.append(loss['print_loss'])
             # Check training statistics
@@ -113,19 +135,20 @@ class Runner(nn.Module):
             if (epoch_id+1) % self.num_peek_epochs == 0:
                 self.eval()
                 self.batch_size = self.dev_batch_size
-                dev_tail_scores = self.forward(dev_tail_data)
-                dev_head_scores = self.forward(dev_head_data)
+                with torch.no_grad():
+                    dev_tail_scores = self.forward(dev_tail_data)
+                    dev_head_scores = self.forward(dev_head_data)
 
-                print('Dev set performance: (correct evaluation)')
-                left_results = eval.sum_hits_and_ranks(dev_tail_data, dev_tail_scores, self.dev_objects)
-                right_results = eval.sum_hits_and_ranks(dev_head_data, dev_head_scores, self.dev_objects)
-                results = eval.avg_hits_and_ranks(left_results, right_results)
-                metrics = results['mrr']
+                    print('Dev set performance: (correct evaluation)')
+                    left_results = eval.sum_hits_and_ranks(dev_tail_data, dev_tail_scores, self.dev_objects)
+                    right_results = eval.sum_hits_and_ranks(dev_head_data, dev_head_scores, self.dev_objects)
+                    results = eval.avg_hits_and_ranks(left_results, right_results)
+                    metrics = results['mrr']
 
-                print('Dev set performance: (include test set labels)')
-                left_results = eval.sum_hits_and_ranks(dev_tail_data, dev_tail_scores, self.all_objects)
-                right_results = eval.sum_hits_and_ranks(dev_head_data, dev_head_scores, self.all_objects)
-                eval.avg_hits_and_ranks(left_results, right_results, verbose=True)
+                    print('Dev set performance: (include test set labels)')
+                    left_results = eval.sum_hits_and_ranks(dev_tail_data, dev_tail_scores, self.all_objects)
+                    right_results = eval.sum_hits_and_ranks(dev_head_data, dev_head_scores, self.all_objects)
+                    eval.avg_hits_and_ranks(left_results, right_results, verbose=True)
 
                 # Save checkpoint
                 if metrics > best_dev_metrics:
@@ -176,20 +199,11 @@ class Runner(nn.Module):
             pred_scores.append(pred_score[:mini_batch_size])
         return torch.cat(pred_scores)
 
-    def test(self, args):
-        dev_path = os.path.join(args.data_dir, 'dev.triples')
-        test_path = os.path.join(args.data_dir, 'test.triples')
-        entity_index_path = os.path.join(args.data_dir, 'entity2id.txt')
-        relation_index_path = os.path.join(args.data_dir, 'relation2id.txt')
-        if 'NELL' in args.data_dir:
-            adj_list_path = os.path.join(args.data_dir, 'adj_list.pkl')
-            seen_entities = data_loader.load_seen_entities(adj_list_path, entity_index_path)
-        else:
-            seen_entities = set()
-        dev_tail_data, dev_head_data = data_loader.load_triples(dev_path, entity_index_path, relation_index_path,
-                                            seen_entities=seen_entities, inverse_triple=True)
-        test_tail_data, test_head_data = data_loader.load_triples(test_path, entity_index_path, relation_index_path,
-                                            seen_entities=seen_entities, inverse_triple=True)
+    def test(self):
+        dev_tail_data = self.dev_tail_data
+        dev_head_data = self.dev_head_data
+        test_tail_data = self.test_tail_data
+        test_head_data = self.test_head_data
 
         epoch_id = self.__load_checkpoint()
         print("Best epoch id: {}".format(epoch_id))
@@ -253,13 +267,13 @@ class Runner(nn.Module):
         for keyPair in args.items():
             print(fmtString % keyPair)
 
-    def continue_train_model(self, args):
+    def continue_train_model(self):
         print("Load Model From Break Point...")
         epoch_id = self.__load_checkpoint()
         print("Last Best Performance...")
-        self.test(args)
+        self.test()
         print("Continue to Train Model...")
-        self.run_train(args, epoch_id+1)
+        self.run_train(epoch_id+1)
 
 
 def run_experiments():
@@ -287,22 +301,22 @@ def run_experiments():
         runner = Runner(args)
         runner.cuda()
         print("Training KGE Model...")
-        runner.run_train(args)
+        runner.run_train()
         print("Best Performance:")
-        runner.test(args)
+        runner.test()
     elif args.continue_train:
         print("Initial KGE Model...")
         runner = Runner(args)
         runner.cuda()
-        runner.continue_train_model(args)
+        runner.continue_train_model()
         print("Best Performance:")
-        runner.test(args)
+        runner.test()
     else:
         print("Initial KGE Model...")
         runner = Runner(args)
         runner.cuda()
         print("Best Performance:")
-        runner.test(args)
+        runner.test()
     print("End of Program.")
 
 

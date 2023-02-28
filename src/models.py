@@ -3,6 +3,8 @@ import numpy as np
 import torch.nn as nn
 import torch.nn.functional as F
 
+from src.CompGCN.compgcn_conv import CompGCNConv
+
 
 class KGEModel(nn.Module):
     def __init__(self, args, num_entities, num_relations):
@@ -39,12 +41,13 @@ class KGEModel(nn.Module):
 class TransE(KGEModel):
     def __init__(self, args, num_entities, num_relations):
         super(TransE, self).__init__(args, num_entities, num_relations)
+        self.gamma = args.gamma
 
     def forward(self, e1, r):
         E1 = self.get_entity_embeddings(e1)
         R = self.get_relation_embeddings(r)
         E2 = self.get_all_entity_embeddings()
-        score = self.p.gamma - torch.norm((E1 + R).unsqueeze(1) - E2, p=1, dim=2)
+        score = self.gamma - torch.norm((E1 + R).unsqueeze(1) - E2, p=1, dim=2)
 
         S = torch.sigmoid(score)
         return S
@@ -53,7 +56,7 @@ class TransE(KGEModel):
         E1 = self.get_entity_embeddings(e1)
         R = self.get_relation_embeddings(r)
         E2 = self.get_entity_embeddings(e2)
-        score = self.p.gamma - torch.norm((E1 + R).unsqueeze(1) - E2, p=1, dim=2)
+        score = self.gamma - torch.norm((E1 + R).unsqueeze(1) - E2, p=1, dim=2)
 
         S = torch.sigmoid(score)
         return S
@@ -236,11 +239,11 @@ class TuckER(KGEModel):
         self.entity_dim = args.entity_dim
         self.relation_dim = args.relation_dim
 
-        self.W = torch.nn.Parameter(torch.tensor(
+        self.W = nn.Parameter(torch.tensor(
             np.random.uniform(-1, 1, (self.relation_dim, self.entity_dim, self.entity_dim)),
             dtype=torch.float, device="cuda", requires_grad=True))
         self.InputDropout = nn.Dropout(args.input_dropout_rate)
-        self.HiddenDropout1 = nn.Dropout(args.hidden_dropout_rate_1)
+        self.HiddenDropout1 = nn.Dropout(args.hidden_dropout_rate)
         self.HiddenDropout2 = nn.Dropout(args.hidden_dropout_rate_2)
         self.bn0 = nn.BatchNorm1d(self.entity_dim)
         self.bn1 = nn.BatchNorm1d(self.relation_dim)
@@ -302,8 +305,9 @@ class ConvE(KGEModel):
         self.emb_2D_d2 = args.emb_2D_d2
         self.num_out_channels = args.num_out_channels
         self.w_d = args.kernel_size
+        self.InputDropout = nn.Dropout(args.input_dropout_rate)
         self.HiddenDropout = nn.Dropout(args.hidden_dropout_rate)
-        self.FeatureDropout = nn.Dropout(args.feat_dropout_rate)
+        self.FeatureDropout = nn.Dropout(args.feature_dropout_rate)
 
         # stride = 1, padding = 0, dilation = 1, groups = 1
         self.conv1 = nn.Conv2d(1, self.num_out_channels, (self.w_d, self.w_d), 1, 0)
@@ -323,20 +327,20 @@ class ConvE(KGEModel):
 
         stacked_inputs = torch.cat([E1, R], 2)
         stacked_inputs = self.bn0(stacked_inputs)
-        # stacked_inputs = self.InputDropout(stacked_inputs)
-        X = self.conv1(stacked_inputs)
-        # X = self.bn1(X)
-        X = F.relu(X)
-        X = self.FeatureDropout(X)
-        X = X.view(-1, self.feat_dim)
-        X = self.fc(X)
-        X = self.HiddenDropout(X)
-        X = self.bn2(X)
-        X = F.relu(X)
-        X = torch.mm(X, E2.transpose(1, 0))
-        X += self.b.expand_as(X)
+        x = self.InputDropout(stacked_inputs)
+        x = self.conv1(x)
+        x = self.bn1(x)
+        x = F.relu(x)
+        x = self.FeatureDropout(x)
+        x = x.view(-1, self.feat_dim)
+        x = self.fc(x)
+        x = self.HiddenDropout(x)
+        x = self.bn2(x)
+        x = F.relu(x)
+        x = torch.mm(x, E2.transpose(1, 0))
+        x += self.b.expand_as(x)
 
-        S = torch.sigmoid(X)
+        S = torch.sigmoid(x)
         return S
 
     def forward_fact(self, e1, r, e2):
@@ -346,57 +350,57 @@ class ConvE(KGEModel):
 
         stacked_inputs = torch.cat([E1, R], 2)
         stacked_inputs = self.bn0(stacked_inputs)
-        # stacked_inputs = self.InputDropout(stacked_inputs)
-        X = self.conv1(stacked_inputs)
-        # X = self.bn1(X)
-        X = F.relu(X)
-        X = self.FeatureDropout(X)
-        X = X.view(-1, self.feat_dim)
-        X = self.fc(X)
-        X = self.HiddenDropout(X)
-        X = self.bn2(X)
-        X = F.relu(X)
-        X = torch.matmul(X.unsqueeze(1), E2.unsqueeze(2)).squeeze(2)
-        X += self.b[e2].unsqueeze(1)
+        x = self.InputDropout(stacked_inputs)
+        x = self.conv1(x)
+        x = self.bn1(x)
+        x = F.relu(x)
+        x = self.FeatureDropout(x)
+        x = x.view(-1, self.feat_dim)
+        x = self.fc(x)
+        x = self.HiddenDropout(x)
+        x = self.bn2(x)
+        x = F.relu(x)
+        x = torch.matmul(x.unsqueeze(1), E2.unsqueeze(2)).squeeze(2)
+        x += self.b[e2].unsqueeze(1)
 
-        S = torch.sigmoid(X)
+        S = torch.sigmoid(x)
         return S
 
 
 class AcrE(KGEModel):
     def __init__(self, args, num_entities, num_relations):
         super(AcrE, self).__init__(args, num_entities, num_relations)
-
-        self.inp_drop = torch.nn.Dropout(args.inp_drop)
-        self.hidden_drop = torch.nn.Dropout(args.hid_drop)
-        self.feature_map_drop = torch.nn.Dropout2d(args.feat_drop)
-        self.bn0 = torch.nn.BatchNorm2d(1)
-        self.bn1 = torch.nn.BatchNorm2d(args.channel)
-        self.bn2 = torch.nn.BatchNorm1d(args.entity_dim)
-        self.fc = torch.nn.Linear(args.channel * 400, args.entity_dim)
         self.padding = 0
         self.way = args.way
         self.bias = args.bias
-        self.channel = args.channel
+        self.channel = args.num_out_channels
         self.first_atrous = args.first_atrous
         self.second_atrous = args.second_atrous
         self.third_atrous = args.third_atrous
 
+        self.InputDropout = nn.Dropout(args.input_dropout_rate)
+        self.HiddenDropout = nn.Dropout(args.hidden_dropout_rate)
+        self.FeatureDropout = nn.Dropout2d(args.feature_dropout_rate)
+        self.bn0 = nn.BatchNorm2d(1)
+        self.bn1 = nn.BatchNorm2d(args.num_out_channels)
+        self.bn2 = nn.BatchNorm1d(args.entity_dim)
+        self.fc = nn.Linear(args.channel * 400, args.entity_dim)
+
         if self.way == 's':
-            self.conv1 = torch.nn.Conv2d(1, self.channel, (3, 3), 1, self.first_atrous, bias=self.bias,
+            self.conv1 = nn.Conv2d(1, self.channel, (3, 3), 1, self.first_atrous, bias=self.bias,
                                          dilation=self.first_atrous)
-            self.conv2 = torch.nn.Conv2d(self.channel, self.channel, (3, 3), 1, self.second_atrous,
+            self.conv2 = nn.Conv2d(self.channel, self.channel, (3, 3), 1, self.second_atrous,
                                          bias=self.bias, dilation=self.second_atrous)
-            self.conv3 = torch.nn.Conv2d(self.channel, self.channel, (3, 3), 1, self.third_atrous, bias=self.bias,
+            self.conv3 = nn.Conv2d(self.channel, self.channel, (3, 3), 1, self.third_atrous, bias=self.bias,
                                          dilation=self.third_atrous)
         else:
-            self.conv1 = torch.nn.Conv2d(1, self.channel, (3, 3), 1, self.first_atrous, bias=self.bias,
+            self.conv1 = nn.Conv2d(1, self.channel, (3, 3), 1, self.first_atrous, bias=self.bias,
                                          dilation=self.first_atrous)
-            self.conv2 = torch.nn.Conv2d(1, self.channel, (3, 3), 1, self.second_atrous, bias=self.bias,
+            self.conv2 = nn.Conv2d(1, self.channel, (3, 3), 1, self.second_atrous, bias=self.bias,
                                          dilation=self.second_atrous)
-            self.conv3 = torch.nn.Conv2d(1, self.channel, (3, 3), 1, self.third_atrous, bias=self.bias,
+            self.conv3 = nn.Conv2d(1, self.channel, (3, 3), 1, self.third_atrous, bias=self.bias,
                                          dilation=self.third_atrous)
-            self.W_gate_e = torch.nn.Linear(1600, 400)
+            self.W_gate_e = nn.Linear(1600, 400)
 
         self.register_parameter('b', nn.Parameter(torch.zeros(num_entities)))
 
@@ -406,7 +410,7 @@ class AcrE(KGEModel):
         E2 = self.get_all_entity_embeddings()
         comb_emb = torch.cat([E1, R], dim=2)
         stack_inp = self.bn0(comb_emb)
-        x = self.inp_drop(stack_inp)
+        x = self.InputDropout(stack_inp)
         res = x
         if self.way == 's':
             x = self.conv1(x)
@@ -422,10 +426,10 @@ class AcrE(KGEModel):
             x = self.W_gate_e(x).view(-1, self.channel, 20, 20)
         x = self.bn1(x)
         x = F.relu(x)
-        x = self.feature_map_drop(x)
+        x = self.FeatureDropout(x)
         x = x.view(x.shape[0], -1)
         x = self.fc(x)
-        x = self.hidden_drop(x)
+        x = self.HiddenDropout(x)
         x = self.bn2(x)
         x = F.relu(x)
 
@@ -440,7 +444,7 @@ class AcrE(KGEModel):
         E2 = self.get_entity_embeddings(e2)
         comb_emb = torch.cat([E1, R], dim=2)
         stack_inp = self.bn0(comb_emb)
-        x = self.inp_drop(stack_inp)
+        x = self.InputDropout(stack_inp)
         res = x
         if self.way == 's':
             x = self.conv1(x)
@@ -456,10 +460,10 @@ class AcrE(KGEModel):
             x = self.W_gate_e(x).view(-1, self.channel, 20, 20)
         x = self.bn1(x)
         x = F.relu(x)
-        x = self.feature_map_drop(x)
+        x = self.FeatureDropout(x)
         x = x.view(x.shape[0], -1)
         x = self.fc(x)
-        x = self.hidden_drop(x)
+        x = self.HiddenDropout(x)
         x = self.bn2(x)
         x = F.relu(x)
 
@@ -471,22 +475,114 @@ class AcrE(KGEModel):
 
 
 # GCN-based Models
-class SACN(KGEModel):
-    def __init__(self, args, num_entities, num_relations):
-        super(SACN, self).__init__(args, num_entities, num_relations)
-
-    def forward(self, e1, r):
-        S = torch.sigmoid(S)
-        return S
-
-    def forward_fact(self, e1, r, e2):
-        S = torch.sigmoid(S)
-        return S
-
-
+# CompGCN (Circular-correlation composition + ConvE score function)
 class CompGCN(KGEModel):
     def __init__(self, args, num_entities, num_relations):
         super(CompGCN, self).__init__(args, num_entities, num_relations)
+        self.args = args
+        assert (self.entity_dim == self.relation_dim)
+        self.init_dim = self.entity_dim
+        self.embed_dim = args.emb_2D_d1 * args.emb_2D_d2
+        self.gcn_dim = self.embed_dim if args.num_gcn_layer == 1 else args.gcn_dim
+        self.edge_index = None
+        self.edge_type = None
+        self.act = torch.tanh
+        self.num_gcn_layer = args.num_gcn_layer
+        self.hidden_dropout_rate_2 = args.hidden_dropout_rate_2
+
+        # define GCN layers
+        self.HiddenDropout2 = nn.Dropout(self.hidden_dropout_rate_2)
+        self.conv1 = CompGCNConv(self.init_dim, self.gcn_dim, num_relations, act=self.act, args=args)
+        self.conv2 = CompGCNConv(self.gcn_dim, self.embed_dim, num_relations, act=self.act,
+                                     args=args) if self.num_gcn_layer == 2 else None
+
+        # ConvE score function
+        self.num_out_channels = args.num_out_channels
+        self.kernel_size = args.kernel_size
+        self.hidden_dropout_rate = args.hidden_dropout_rate
+        self.feature_dropout_rate = args.feature_dropout_rate
+        self.bias = args.bias
+        self.bn0 = nn.BatchNorm2d(1)
+        self.bn1 = nn.BatchNorm2d(self.num_out_channels)
+        self.bn2 = nn.BatchNorm1d(self.embed_dim)
+        self.HiddenDropout = nn.Dropout(self.hidden_dropout_rate)
+        self.FeatureDropout = nn.Dropout(self.feature_dropout_rate)
+        self.m_conv1 = nn.Conv2d(1, out_channels=self.num_out_channels,
+                                    kernel_size=(self.kernel_size, self.kernel_size),
+                                    stride=1, padding=0, bias=self.bias)
+        flat_sz_h = int(2 * args.emb_2D_d1) - self.kernel_size + 1
+        flat_sz_w = args.emb_2D_d2 - self.kernel_size + 1
+        self.flat_sz = flat_sz_h * flat_sz_w * self.num_out_channels
+        self.fc = nn.Linear(self.flat_sz, self.embed_dim)
+        self.register_parameter('b', nn.Parameter(torch.zeros(num_entities)))
+
+    def set_edge(self, edge_index, edge_type):
+        self.edge_index = edge_index
+        self.edge_type = edge_type
+
+    def concat(self, e1_embed, rel_embed):
+        e1_embed = e1_embed.view(-1, 1, self.embed_dim)
+        rel_embed = rel_embed.view(-1, 1, self.embed_dim)
+        stack_inp = torch.cat([e1_embed, rel_embed], 1)
+        stack_inp = torch.transpose(stack_inp, 2, 1).reshape((-1, 1, 2 * self.args.emb_2D_d1, self.args.emb_2D_d2))
+        return stack_inp
+
+    # GCN layers
+    def forward_base(self, sub, rel, drop1, drop2):
+        e = self.get_all_entity_embeddings()
+        r = self.get_all_relation_embeddings()
+        x, r = self.conv1(e, self.edge_index, self.edge_type, rel_embed=r)
+        x = drop1(x)
+        x, r = self.conv2(x, self.edge_index, self.edge_type, rel_embed=r) if self.num_gcn_layer == 2 else (x, r)
+        x = drop2(x) if self.num_gcn_layer == 2 else x
+
+        sub_emb = torch.index_select(x, 0, sub)
+        rel_emb = torch.index_select(r, 0, rel)
+        return sub_emb, rel_emb, x
+
+    def forward(self, e1, r):
+        E1, R, E2 = self.forward_base(e1, r, self.HiddenDropout, self.FeatureDropout)
+        stk_inp = self.concat(E1, R)
+        x = self.bn0(stk_inp)
+        x = self.m_conv1(x)
+        x = self.bn1(x)
+        x = F.relu(x)
+        x = self.FeatureDropout(x)
+        x = x.view(-1, self.flat_sz)
+        x = self.fc(x)
+        x = self.HiddenDropout2(x)
+        x = self.bn2(x)
+        x = F.relu(x)
+        x = torch.mm(x, E2.transpose(1, 0))
+        x += self.b.expand_as(x)
+
+        S = torch.sigmoid(x)
+        return S
+
+    def forward_fact(self, e1, r, e2):
+        E1, R, E2_all = self.forward_base(e1, r, self.HiddenDropout, self.FeatureDropout)
+        E2 = torch.index_select(E2_all, 0, e2)
+        stk_inp = self.concat(E1, R)
+        x = self.bn0(stk_inp)
+        x = self.m_conv1(x)
+        x = self.bn1(x)
+        x = F.relu(x)
+        x = self.FeatureDropout(x)
+        x = x.view(-1, self.flat_sz)
+        x = self.fc(x)
+        x = self.HiddenDropout2(x)
+        x = self.bn2(x)
+        x = F.relu(x)
+        x = torch.mm(x, E2.transpose(1, 0))
+        x += self.b.expand_as(x)
+
+        S = torch.sigmoid(x)
+        return S
+
+
+class SACN(KGEModel):
+    def __init__(self, args, num_entities, num_relations):
+        super(SACN, self).__init__(args, num_entities, num_relations)
 
     def forward(self, e1, r):
         S = torch.sigmoid(S)
