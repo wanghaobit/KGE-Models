@@ -79,7 +79,7 @@ parser.add_argument('--feature_dropout_rate', type=float, default=0.2,
 parser.add_argument('--bias', action='store_true',
                     help='Whether to use bias in the model')
 
-# Trans
+# TransE
 parser.add_argument('--gamma', type=float, default=24.0,
                     help="RotatE's moving average weight")
 
@@ -112,5 +112,9 @@ parser.add_argument('--num_gcn_layer', type=int, default=1,
                     help='Number of GCN Layers to use')
 parser.add_argument('--gcn_dropout_rate', type=float, default=0.1,
                     help='GCN dropout rate (default: 0.1)')
+
+# SACN
+parser.add_argument('-gc1_emb_size', type=int, default=150,
+                    help='The hidden dimension of GCN layer')
 
 args = parser.parse_args()

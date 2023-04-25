@@ -10,11 +10,12 @@ from torch.nn.utils import clip_grad_norm_
 import src.eval as eval
 from src.parse_args import args
 import src.data_loader as data_loader
+import src.SACN.helper as SACN_helper
 import src.CompGCN.helper as CompGCN_helper
 from src.models import TransE, RotatE
 from src.models import DistMult, ComplEx, TuckER
 from src.models import ConvE, AcrE
-from src.models import CompGCN
+from src.models import CompGCN, SACN
 
 
 class Runner(nn.Module):
@@ -67,6 +68,10 @@ class Runner(nn.Module):
             self.kge = CompGCN(args, self.num_entities, self.num_relations)
             edge_index, edge_type = CompGCN_helper.construct_adj(self.train_data_tuple, self.num_relations)
             self.kge.set_edge(edge_index, edge_type)
+        elif args.emb_model == "SACN":
+            self.kge = SACN(args, self.num_entities, self.num_relations)
+            A = SACN_helper.get_adjacencies(self.train_data, self.num_entities, self.num_relations)
+            self.kge.set_A(A)
         else:
             raise NotImplementedError
         self.kge.cuda()
@@ -112,6 +117,7 @@ class Runner(nn.Module):
             # Update model parameters
             self.train()
             self.batch_size = self.train_batch_size
+            # if args.emb_model == "SACN": self.kge.set_batch_size(self.batch_size)
             random.shuffle(train_data)
             batch_losses = []
             start_time = time.time()
@@ -135,6 +141,7 @@ class Runner(nn.Module):
             if (epoch_id+1) % self.num_peek_epochs == 0:
                 self.eval()
                 self.batch_size = self.dev_batch_size
+                # if args.emb_model == "SACN": self.kge.set_batch_size(self.batch_size)
                 with torch.no_grad():
                     dev_tail_scores = self.forward(dev_tail_data)
                     dev_head_scores = self.forward(dev_head_data)
@@ -209,6 +216,7 @@ class Runner(nn.Module):
         print("Best epoch id: {}".format(epoch_id))
         self.eval()
         self.batch_size = self.dev_batch_size
+        # if args.emb_model == "SACN": self.kge.set_batch_size(self.batch_size)
         with torch.no_grad():
             dev_tail_scores = self.forward(dev_tail_data)
             dev_head_scores = self.forward(dev_head_data)

@@ -144,19 +144,19 @@ def avg_hits_and_ranks(left_results, right_results, verbose=False):
         results['hits@{}'.format(k + 1)] = round((left_results['hits@{}'.format(k+1)]
                         + right_results['hits@{}'.format(k+1)]) / (left_results['count'] + right_results['count']), 4)
 
-    stdout_left = 'Left performance: \t Hits@1 = {:.3f}, \t Hits@10 = {:.3f}, \t MRR = {:.3f}'.format(
-        results['left_hits@1'], results['left_hits@10'], results['left_mrr'])
+    stdout_left = 'Left performance: \t Hits@1 = {:.3f}, \t Hits@1 = {:.3f}, \t Hits@10 = {:.3f}, \t MRR = {:.3f}'.format(
+        results['left_hits@1'], results['left_hits@3'], results['left_hits@10'], results['left_mrr'])
     print(stdout_left)
 
-    stdout_right = 'Right performance: \t Hits@1 = {:.3f}, \t Hits@10 = {:.3f}, \t MRR = {:.3f}'.format(
-        results['right_hits@1'], results['right_hits@10'], results['right_mrr'])
+    stdout_right = 'Right performance: \t Hits@1 = {:.3f}, \t Hits@1 = {:.3f}, \t Hits@10 = {:.3f}, \t MRR = {:.3f}'.format(
+        results['right_hits@1'], results['right_hits@3'], results['right_hits@10'], results['right_mrr'])
     print(stdout_right)
 
     if verbose:
         print('Average performance:')
         print('Hits@1 = {:.3f}'.format(results['hits@1']))
         print('Hits@3 = {:.3f}'.format(results['hits@3']))
-        print('Hits@5 = {:.3f}'.format(results['hits@5']))
+        # print('Hits@5 = {:.3f}'.format(results['hits@5']))
         print('Hits@10 = {:.3f}'.format(results['hits@10']))
         print('MRR = {:.3f}'.format(results['mrr']))
         print('MR = {}'.format(int(results['mr'])))

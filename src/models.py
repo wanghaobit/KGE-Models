@@ -1,9 +1,11 @@
+import math
 import torch
 import numpy as np
 import torch.nn as nn
 import torch.nn.functional as F
 
 from src.CompGCN.compgcn_conv import CompGCNConv
+from src.SACN.gcn_layer import GraphConvolution
 
 
 class KGEModel(nn.Module):
@@ -47,18 +49,20 @@ class TransE(KGEModel):
         E1 = self.get_entity_embeddings(e1)
         R = self.get_relation_embeddings(r)
         E2 = self.get_all_entity_embeddings()
-        score = self.gamma - torch.norm((E1 + R).unsqueeze(1) - E2, p=1, dim=2)
+        x = (E1 + R).unsqueeze(1)
+        x = self.gamma - torch.norm(x - E2, p=1, dim=2)
 
-        S = torch.sigmoid(score)
+        S = torch.sigmoid(x)
         return S
 
     def forward_fact(self, e1, r, e2):
         E1 = self.get_entity_embeddings(e1)
         R = self.get_relation_embeddings(r)
         E2 = self.get_entity_embeddings(e2)
-        score = self.gamma - torch.norm((E1 + R).unsqueeze(1) - E2, p=1, dim=2)
+        x = (E1 + R).unsqueeze(1)
+        x = self.gamma - torch.norm(x - E2, p=1, dim=2)
 
-        S = torch.sigmoid(score)
+        S = torch.sigmoid(x)
         return S
 
 
@@ -481,7 +485,7 @@ class CompGCN(KGEModel):
         super(CompGCN, self).__init__(args, num_entities, num_relations)
         self.args = args
         assert (self.entity_dim == self.relation_dim)
-        self.init_dim = self.entity_dim
+        self.init_dim = int(self.entity_dim / 2)
         self.embed_dim = args.emb_2D_d1 * args.emb_2D_d2
         self.gcn_dim = self.embed_dim if args.num_gcn_layer == 1 else args.gcn_dim
         self.edge_index = None
@@ -515,6 +519,11 @@ class CompGCN(KGEModel):
         self.flat_sz = flat_sz_h * flat_sz_w * self.num_out_channels
         self.fc = nn.Linear(self.flat_sz, self.embed_dim)
         self.register_parameter('b', nn.Parameter(torch.zeros(num_entities)))
+
+        self.entity_embeddings = nn.Embedding(self.num_entities, self.init_dim)
+        self.relation_embeddings = nn.Embedding(self.num_relations, self.init_dim)
+        nn.init.xavier_normal_(self.entity_embeddings.weight)
+        nn.init.xavier_normal_(self.relation_embeddings.weight)
 
     def set_edge(self, edge_index, edge_type):
         self.edge_index = edge_index
@@ -583,13 +592,106 @@ class CompGCN(KGEModel):
 class SACN(KGEModel):
     def __init__(self, args, num_entities, num_relations):
         super(SACN, self).__init__(args, num_entities, num_relations)
+        assert (self.entity_dim*2 == self.relation_dim)
+
+        self.init_emb_size = args.entity_dim        # 100
+        self.gc1_emb_size = args.gc1_emb_size       # 150
+        self.embedding_dim = args.entity_dim * 2    # 200
+        self.channels = args.num_out_channels       # 200
+        self.kernel_size = args.kernel_size         # 5
+        self.now_batch_size = args.batch_size
+        self.A = None
+        # self.X = torch.LongTensor([i for i in range(num_entities)])
+
+        self.gc1 = GraphConvolution(self.init_emb_size, self.gc1_emb_size, num_relations)
+        self.gc2 = GraphConvolution(self.gc1_emb_size, self.embedding_dim, num_relations)
+
+        self.InputDropout = torch.nn.Dropout(args.input_dropout_rate)       # 0.0
+        self.HiddenDropout = torch.nn.Dropout(args.hidden_dropout_rate)     # 0.25
+        self.HiddenDropout2 = torch.nn.Dropout(args.hidden_dropout_rate)    # 0.25
+        self.HiddenDropout3 = torch.nn.Dropout(args.hidden_dropout_rate)    # 0.25
+        self.FeatureDropout = torch.nn.Dropout(args.feature_dropout_rate)   # 0.25
+
+        self.conv1 = nn.Conv1d(2, self.channels, self.kernel_size, stride=1, padding=int(
+            math.floor(self.kernel_size / 2)))  # kernel size is odd, then padding = math.floor(kernel_size/2)
+        self.bn0 = torch.nn.BatchNorm1d(2)
+        self.bn1 = torch.nn.BatchNorm1d(self.channels)
+        self.bn2 = torch.nn.BatchNorm1d(self.embedding_dim)
+        self.bn3 = torch.nn.BatchNorm1d(self.gc1_emb_size)
+        self.bn4 = torch.nn.BatchNorm1d(self.embedding_dim)
+        self.fc = torch.nn.Linear(self.embedding_dim * self.channels, self.embedding_dim)
+        self.register_parameter('b', nn.Parameter(torch.zeros(num_entities)))
+
+        nn.init.xavier_normal_(self.gc1.weight.data)
+        nn.init.xavier_normal_(self.gc2.weight.data)
+
+    def set_A(self, A):
+        self.A = A
+
+    def set_batch_size(self, now_batch_size):
+        self.now_batch_size = now_batch_size
 
     def forward(self, e1, r):
-        S = torch.sigmoid(S)
+        E = self.get_all_entity_embeddings()
+        x = self.gc1(E, self.A)
+        x = self.bn3(x)
+        x = F.tanh(x)
+        x = self.HiddenDropout2(x)
+        x = self.gc2(x, self.A)
+        x = self.bn4(x)
+        x = F.tanh(x)
+        E = self.HiddenDropout3(x)
+
+        E1 = torch.index_select(E, 0, e1)
+        R = self.get_relation_embeddings(r)
+        stacked_inputs = torch.cat([E1.unsqueeze(1), R.unsqueeze(1)], 1)
+        stacked_inputs = self.bn0(stacked_inputs)
+        x = self.InputDropout(stacked_inputs)
+        x = self.conv1(x)
+        x = self.bn1(x)
+        x = F.relu(x)
+        x = self.FeatureDropout(x)
+        # x = x.view(self.now_batch_size, -1)
+        x = x.view(x.shape[0], -1)
+        x = self.fc(x)
+        x = self.HiddenDropout(x)
+        x = self.bn2(x)
+        x = F.relu(x)
+        x = torch.mm(x, E.transpose(1, 0))
+
+        S = torch.sigmoid(x)
         return S
 
     def forward_fact(self, e1, r, e2):
-        S = torch.sigmoid(S)
+        E = self.get_all_entity_embeddings()
+        x = self.gc1(E, self.A)
+        x = self.bn3(x)
+        x = F.tanh(x)
+        x = self.HiddenDropout2(x)
+        x = self.gc2(x, self.A)
+        x = self.bn4(x)
+        x = F.tanh(x)
+        E = self.HiddenDropout3(x)
+
+        E1 = torch.index_select(E, 0, e1)
+        R = self.get_relation_embeddings(r)
+        E2 = torch.index_select(E, 0, e2)
+        stacked_inputs = torch.cat([E1.unsqueeze(1), R.unsqueeze(1)], 1)
+        stacked_inputs = self.bn0(stacked_inputs)
+        x = self.InputDropout(stacked_inputs)
+        x = self.conv1(x)
+        x = self.bn1(x)
+        x = F.relu(x)
+        x = self.FeatureDropout(x)
+        # x = x.view(self.now_batch_size, -1)
+        x = x.view(x.shape[0], -1)
+        x = self.fc(x)
+        x = self.HiddenDropout(x)
+        x = self.bn2(x)
+        x = F.relu(x)
+        x = torch.mm(x, E2.transpose(1, 0))
+
+        S = torch.sigmoid(x)
         return S
 
 

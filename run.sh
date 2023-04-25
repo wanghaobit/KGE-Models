@@ -49,6 +49,12 @@ if [ $kernel_size ]; then
     kernel_size_flag="--kernel_size ${kernel_size}"
 fi
 
+# AcrE
+way_flag=''
+if [ $way ]; then
+    way_flag="--way ${way}"
+fi
+
 cmd="python3 -u -m src.main \
     --data_dir $data_dir \
     $exp \
@@ -56,7 +62,6 @@ cmd="python3 -u -m src.main \
     --entity_dim $entity_dim \
     --relation_dim $relation_dim \
     --num_epochs $num_epochs \
-    --num_peek_epochs $num_peek_epochs \
     --num_wait_epochs $num_wait_epochs \
     --batch_size $batch_size \
     --train_batch_size $train_batch_size \
@@ -72,9 +77,12 @@ cmd="python3 -u -m src.main \
     $feature_dropout_rate_flag \
     $num_out_channels_flag \
     $kernel_size_flag \
+    $way_flag \
     --gpu $gpu \
     $ARGS"
 
 echo "Executing $cmd"
 
 $cmd
+# nohup $cmd > log_wn18rr_rotate_1000.txt 2>&1 &
+# nohup $cmd > log_wn18rr_compgcn.txt 2>&1 &
